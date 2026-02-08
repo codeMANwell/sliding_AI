@@ -1,0 +1,3 @@
+/home/adam/Documents/cpp/sliding-AI/build/CMakeFiles/app.dir
+/home/adam/Documents/cpp/sliding-AI/build/CMakeFiles/edit_cache.dir
+/home/adam/Documents/cpp/sliding-AI/build/CMakeFiles/rebuild_cache.dir
