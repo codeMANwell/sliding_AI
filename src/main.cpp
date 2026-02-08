@@ -4,14 +4,14 @@
 #include <string>
 #include "arial.h"
 
-const int MAX_NB_AIS = 100;
-const float slipperyness = 0.9;
-player players[MAX_NB_AIS + 1];
-
 struct player
 {
-    int x, y, x_speed, y_speed;
+    double x, y, x_speed, y_speed;
 };
+
+const int MAX_NB_AIS = 100;
+const double slipperyness = 0.95;
+player players[MAX_NB_AIS + 1];
 
 void update_player(int i_player, bool button_presse[5])
 {
@@ -25,15 +25,16 @@ void update_player(int i_player, bool button_presse[5])
 
 void reset_player(int i_player)
 {
-    players[0].x = 50;
-    players[0].y = 50;
+    players[0].x = 500;
+    players[0].y = 500;
     players[0].x_speed = 0;
     players[0].y_speed = 0;
 }
 
 int main()
 {
-    int windowWidth = 800, windowHeight = 600;
+    int window_width = 1000, window_height = 1000;
+    int x_arena = 500, y_arena = 500, arena_size = 1000;
     int mode = 0;
     int nb_AIs = 50;
     reset_player(0);
@@ -46,10 +47,10 @@ int main()
     }
 
     sf::RenderWindow window(
-        sf::VideoMode(800, 600),
+        sf::VideoMode(window_width, window_height),
         "Sliding-AI");
 
-    window.setFramerateLimit(240);
+    window.setFramerateLimit(60);
 
     while (window.isOpen())
     {
@@ -57,23 +58,45 @@ int main()
         while (window.pollEvent(event))
         {
             if (event.type == sf::Event::Closed)
+            {
                 window.close();
+            }
+            if (event.type == sf::Event::Resized)
+            {
+                window_width = event.size.width;
+                window_height = event.size.height;
+
+                sf::FloatRect visibleArea(0, 0, window_width, window_height);
+                window.setView(sf::View(visibleArea));
+
+                arena_size = std::min(window_width, window_height);
+                x_arena = window_width / 2, y_arena = window_height / 2;
+            }
         }
         if (mode == 0 || mode == 2)
         {
-            bool inputs[5] = {sf::Keyboard::isKeyPressed(sf::Keyboard::Up) || sf::Keyboard::isKeyPressed(sf::Keyboard::Z),
-                              sf::Keyboard::isKeyPressed(sf::Keyboard::Down) || sf::Keyboard::isKeyPressed(sf::Keyboard::S),
-                              sf::Keyboard::isKeyPressed(sf::Keyboard::Left) || sf::Keyboard::isKeyPressed(sf::Keyboard::Q),
-                              sf::Keyboard::isKeyPressed(sf::Keyboard::Right) || sf::Keyboard::isKeyPressed(sf::Keyboard::D),
-                              false};
+            bool inputs[5] = {
+                sf::Keyboard::isKeyPressed(sf::Keyboard::Right) || sf::Keyboard::isKeyPressed(sf::Keyboard::D),
+                sf::Keyboard::isKeyPressed(sf::Keyboard::Left) || sf::Keyboard::isKeyPressed(sf::Keyboard::Q),
+                sf::Keyboard::isKeyPressed(sf::Keyboard::Down) || sf::Keyboard::isKeyPressed(sf::Keyboard::S),
+                sf::Keyboard::isKeyPressed(sf::Keyboard::Up) || sf::Keyboard::isKeyPressed(sf::Keyboard::Z),
+                false};
             update_player(0, inputs);
         }
         window.clear(sf::Color::White);
 
-        sf::CircleShape clearbutton(10);
-        clearbutton.setPosition(100, 100);
-        clearbutton.setFillColor(sf::Color(255, 0, 0));
-        window.draw(clearbutton);
+        sf::RectangleShape arena(sf::Vector2f(arena_size, arena_size));
+        arena.setPosition(x_arena, y_arena);
+        arena.setFillColor(sf::Color(128, 128, 128));
+        window.draw(arena);
+
+        if (mode == 0)
+        {
+            sf::CircleShape dot(10);
+            dot.setPosition(players[0].x, players[0].y);
+            dot.setFillColor(sf::Color(255, 0, 0));
+            window.draw(dot);
+        }
 
         window.display();
     }
