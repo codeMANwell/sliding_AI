@@ -1,6 +1,6 @@
 # Sliding AI
 
-> Projet C++ utilisant SFML pour le rendu graphique.
+> C++ SFML project.
 
 ---
 
@@ -8,11 +8,11 @@
 
 *(À compléter)*
 
-Simulation d'une IA qui,se déplace
+An AI tries to avoid obstacles on a slippery surface.
 
 ---
 
-## Technologies utilisées
+## Modules
 
 - **C++17**
 - **SFML** (graphics, window, system)
@@ -21,16 +21,15 @@ Simulation d'une IA qui,se déplace
 
 ---
 
-## Structure du projet
+## Structure
 
 ```text
 .
-├── src/                # Fichiers source (.cpp)
+├── src/                
 │   └── main.cpp
 ├── include/            # Headers (.h)
 │   └── arial.h
-├── assets/             # Ressources externes (si utilisées)
-├── build/              # Dossier de build (généré)
+├── build/              
 ├── CMakeLists.txt
 ├── .gitignore
 └── README.md
