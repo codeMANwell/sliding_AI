@@ -16,6 +16,16 @@ struct inputs
     bool key_right, key_left, key_up, key_down, space;
 };
 
+class NeuronalNetwork
+{
+    static unsigned int nb_inputs, nb_per_hidden, nb_outputs, nb_hidden_layers;
+
+    NeuronalNetwork(int inp, int per_hid, int out, int nb_hid)
+    {
+        nb_inputs = inp, nb_per_hidden = per_hid, nb_outputs = out, nb_hidden_layers = nb_hid;
+    }
+};
+
 const int MAX_NB_AIS = 100;
 const double slipperyness = 0.95;
 const int arena_size = 1000;
