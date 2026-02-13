@@ -6,6 +6,17 @@
 #include <random>
 #include "arial.h"
 
+#define MAX_NB_AIS 100
+#define MAX_NB_INPUTS 100
+#define MAX_NB_HIDDEN_LAYERS 10
+#define MAX_NB_PER_HIDDEN 100
+#define MAX_NB_OUTPUTS 5
+
+const int WeightArraySize = (MAX_NB_INPUTS * MAX_NB_PER_HIDDEN) +
+                            MAX_NB_PER_HIDDEN * MAX_NB_PER_HIDDEN * (MAX_NB_HIDDEN_LAYERS - 1) +
+                            MAX_NB_PER_HIDDEN * MAX_NB_OUTPUTS;
+const int BiasesArraySize = MAX_NB_HIDDEN_LAYERS * MAX_NB_PER_HIDDEN + MAX_NB_OUTPUTS;
+
 struct player
 {
     double x, y, x_speed, y_speed;
@@ -16,18 +27,61 @@ struct inputs
     bool key_right, key_left, key_up, key_down, space;
 };
 
+static std::random_device rd;
+static std::mt19937 generator(rd());
+static std::uniform_real_distribution<double> distrib_d(0.0, 1.0);
+static std::uniform_int_distribution<int> distrib_i(0, 1);
+
+double get_rand_double01()
+{
+    return distrib_d(generator);
+}
+
+int get_rand_int01()
+{
+    return distrib_i(generator);
+}
+
 class NeuronalNetwork
 {
-    static unsigned int nb_inputs, nb_per_hidden, nb_outputs, nb_hidden_layers;
+public:
+    int nb_inputs, nb_per_hidden, nb_outputs, nb_hidden_layers;
+    std::array<double, WeightArraySize> weights;
+    std::array<double, BiasesArraySize> biases;
 
     NeuronalNetwork(int inp, int per_hid, int out, int nb_hid)
     {
+        if (inp > MAX_NB_INPUTS || per_hid > MAX_NB_PER_HIDDEN ||
+            nb_outputs > MAX_NB_OUTPUTS || nb_hid > MAX_NB_HIDDEN_LAYERS ||
+            inp < 0 || per_hid < 0 || nb_outputs < 0 || nb_hid < 0)
+        {
+            throw std::invalid_argument("Invalid or out of range dimensions");
+        }
         nb_inputs = inp, nb_per_hidden = per_hid, nb_outputs = out, nb_hidden_layers = nb_hid;
+        randomize();
+    }
+
+    void randomize()
+    {
+        for (int i = 0; i < WeightArraySize + 1; i++)
+        {
+            weights[i] = 4 * get_rand_double01() - 2;
+        }
+    }
+
+    std::vector<double> run_network(std::vector<double> inputs)
+    {
+        std::vector<double> res;
+        for (int o = 0; o < nb_outputs; o++)
+        {
+            res.push_back(get_rand_double01());
+        }
+        return res;
     }
 };
 
-const int MAX_NB_AIS = 100;
 const double slipperyness = 0.95;
+const double accel = 1;
 const int arena_size = 1000;
 player players[MAX_NB_AIS + 1];
 
@@ -35,8 +89,8 @@ int screen_arena_size, x_arena, y_arena;
 
 void update_player(int i_player, std::array<bool, 5> button_presse)
 {
-    players[i_player].x_speed += (button_presse[0] ? 1 : 0) - (button_presse[1] ? 1 : 0);
-    players[i_player].y_speed += (button_presse[2] ? 1 : 0) - (button_presse[3] ? 1 : 0);
+    players[i_player].x_speed += (button_presse[0] ? accel : 0) - (button_presse[1] ? accel : 0);
+    players[i_player].y_speed += (button_presse[2] ? accel : 0) - (button_presse[3] ? accel : 0);
     players[i_player].x_speed *= slipperyness;
     players[i_player].y_speed *= slipperyness;
     players[i_player].x += players[i_player].x_speed;
@@ -80,6 +134,13 @@ int main()
     int mode = 0;
     int nb_AIs = 50;
     x_arena = 500, y_arena = 500, screen_arena_size = 900;
+
+    std::vector<NeuronalNetwork> networks;
+    for (int i = 0; i < nb_AIs; i++)
+    {
+        networks.push_back(NeuronalNetwork(4, 6, 5, 2));
+    }
+
     for (int i_player = 0; i_player < nb_AIs + 1; i_player++)
     {
         reset_player(i_player);
@@ -123,10 +184,12 @@ int main()
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
         {
             mode = 0;
+            // std::cout << get_rand_double01() << std::endl;
         }
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::Z))
         {
             mode = 1;
+            // std::cout << get_rand_int01() << std::endl;
         }
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::E))
         {
