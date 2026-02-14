@@ -12,10 +12,10 @@
 #define MAX_NB_PER_HIDDEN 100
 #define MAX_NB_OUTPUTS 5
 
-const int WeightArraySize = (MAX_NB_INPUTS * MAX_NB_PER_HIDDEN) +
-                            MAX_NB_PER_HIDDEN * MAX_NB_PER_HIDDEN * (MAX_NB_HIDDEN_LAYERS - 1) +
-                            MAX_NB_PER_HIDDEN * MAX_NB_OUTPUTS;
-const int BiasesArraySize = MAX_NB_HIDDEN_LAYERS * MAX_NB_PER_HIDDEN + MAX_NB_OUTPUTS;
+const int MaxWeightArraySize = (MAX_NB_INPUTS * MAX_NB_PER_HIDDEN) +
+                               MAX_NB_PER_HIDDEN * MAX_NB_PER_HIDDEN * (MAX_NB_HIDDEN_LAYERS - 1) +
+                               MAX_NB_PER_HIDDEN * MAX_NB_OUTPUTS;
+const int MaxBiasesArraySize = MAX_NB_HIDDEN_LAYERS * MAX_NB_PER_HIDDEN + MAX_NB_OUTPUTS;
 
 struct player
 {
@@ -95,6 +95,13 @@ public:
             throw std::invalid_argument("Invalid or out of range dimensions");
         }
         nb_inputs = inp, nb_per_hidden = per_hid, nb_outputs = out, nb_hidden_layers = nb_hid;
+        WeightArraySize = (nb_inputs * nb_per_hidden) +
+                          nb_per_hidden * nb_per_hidden * (nb_hidden_layers - 1) +
+                          nb_per_hidden * nb_hidden_layers;
+        BiasesArraySize = nb_hidden_layers * nb_per_hidden + nb_outputs;
+        // std::cout << "Initialized network with weight array size : " << WeightArraySize << std::endl;
+        // std::cout << "Initialized network with biases array size : " << BiasesArraySize << std::endl;
+
         randomize();
     }
 
@@ -174,8 +181,9 @@ public:
 
 private:
     int nb_inputs, nb_per_hidden, nb_outputs, nb_hidden_layers;
-    std::array<double, WeightArraySize> weights;
-    std::array<double, BiasesArraySize> biases;
+    int WeightArraySize, BiasesArraySize;
+    std::array<double, MaxWeightArraySize> weights;
+    std::array<double, MaxBiasesArraySize> biases;
 
     int get_idx_w(int start_layer, int start_id, int end_id)
     {
@@ -211,18 +219,22 @@ private:
 
     double get_w(int start_layer, int start_id, int end_id)
     {
+        /*
         std::cout << "w : " << get_idx_w(start_layer, start_id, end_id)
                   << " (" << start_layer << " " << start_id << " " << end_id << ")"
                   << std::endl;
+        */
         return weights[get_idx_w(start_layer, start_id, end_id)];
     }
 
     double get_b(int layer, int neuron_id)
     {
+        /*
         std::cout << "b : " << get_idx_b(layer, neuron_id)
                   << " (" << layer << " " << neuron_id << ")"
                   << std::endl;
         ;
+        */
         return biases[get_idx_b(layer, neuron_id)];
     }
 };
