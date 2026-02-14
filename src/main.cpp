@@ -6,7 +6,7 @@
 #include <random>
 #include "arial.h"
 
-#define MAX_NB_AIS 100
+#define MAX_NB_PLAYERS 100
 #define MAX_NB_INPUTS 100
 #define MAX_NB_HIDDEN_LAYERS 10
 #define MAX_NB_PER_HIDDEN 100
@@ -42,13 +42,50 @@ int get_rand_int01()
     return distrib_i(generator);
 }
 
+class SlidingGame
+{
+public:
+    SlidingGame(double slipperyness_arg, double accel_arg, int arena_size_arg)
+    {
+        slipperyness = slipperyness_arg, accel = accel_arg, arena_size = arena_size_arg;
+    }
+
+    void update_player(int i_player, std::array<bool, 5> button_presse)
+    {
+        players[i_player].x_speed += (button_presse[0] ? accel : 0) - (button_presse[1] ? accel : 0);
+        players[i_player].y_speed += (button_presse[2] ? accel : 0) - (button_presse[3] ? accel : 0);
+        players[i_player].x_speed *= slipperyness;
+        players[i_player].y_speed *= slipperyness;
+        players[i_player].x += players[i_player].x_speed;
+        players[i_player].y += players[i_player].y_speed;
+    }
+
+    void reset_player(int i_player)
+    {
+        players[i_player].x = 0;
+        players[i_player].y = 0;
+        players[i_player].x_speed = 0;
+        players[i_player].y_speed = 0;
+    }
+    player get_player(int player_id)
+    {
+        return players[player_id];
+    }
+    int get_arena_size()
+    {
+        return arena_size;
+    }
+
+private:
+    double slipperyness;
+    double accel;
+    int arena_size;
+    player players[MAX_NB_PLAYERS + 1];
+};
+
 class NeuronalNetwork
 {
 public:
-    int nb_inputs, nb_per_hidden, nb_outputs, nb_hidden_layers;
-    std::array<double, WeightArraySize> weights;
-    std::array<double, BiasesArraySize> biases;
-
     NeuronalNetwork(int inp, int per_hid, int out, int nb_hid)
     {
         if (inp > MAX_NB_INPUTS || per_hid > MAX_NB_PER_HIDDEN ||
@@ -78,36 +115,23 @@ public:
         }
         return res;
     }
-};
 
-const double slipperyness = 0.95;
-const double accel = 1;
-const int arena_size = 1000;
-player players[MAX_NB_AIS + 1];
+private:
+    int nb_inputs, nb_per_hidden, nb_outputs, nb_hidden_layers;
+    std::array<double, WeightArraySize> weights;
+    std::array<double, BiasesArraySize> biases;
+
+    int get_idx_w(int start_layer, int start_id, int end_id)
+    {
+        return 0;
+    }
+};
 
 int screen_arena_size, x_arena, y_arena;
 
-void update_player(int i_player, std::array<bool, 5> button_presse)
+sf::CircleShape draw_player(int x, int y, int game_arena_size, sf::Color col)
 {
-    players[i_player].x_speed += (button_presse[0] ? accel : 0) - (button_presse[1] ? accel : 0);
-    players[i_player].y_speed += (button_presse[2] ? accel : 0) - (button_presse[3] ? accel : 0);
-    players[i_player].x_speed *= slipperyness;
-    players[i_player].y_speed *= slipperyness;
-    players[i_player].x += players[i_player].x_speed;
-    players[i_player].y += players[i_player].y_speed;
-}
-
-void reset_player(int i_player)
-{
-    players[i_player].x = 0;
-    players[i_player].y = 0;
-    players[i_player].x_speed = 0;
-    players[i_player].y_speed = 0;
-}
-
-sf::CircleShape draw_player(int x, int y, sf::Color col)
-{
-    double scale = (double)screen_arena_size / arena_size;
+    double scale = (double)screen_arena_size / game_arena_size;
     int real_x = x * scale + x_arena;
     int real_y = y * scale + y_arena;
     sf::CircleShape dot(screen_arena_size / 100.0);
@@ -135,6 +159,8 @@ int main()
     int nb_AIs = 50;
     x_arena = 500, y_arena = 500, screen_arena_size = 900;
 
+    SlidingGame game(0.95, 1.0, 1000);
+
     std::vector<NeuronalNetwork> networks;
     for (int i = 0; i < nb_AIs; i++)
     {
@@ -143,7 +169,7 @@ int main()
 
     for (int i_player = 0; i_player < nb_AIs + 1; i_player++)
     {
-        reset_player(i_player);
+        game.reset_player(i_player);
     }
 
     sf::Font font;
@@ -181,17 +207,17 @@ int main()
             }
         }
 
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num1))
         {
             mode = 0;
             // std::cout << get_rand_double01() << std::endl;
         }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Z))
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num2))
         {
             mode = 1;
             // std::cout << get_rand_int01() << std::endl;
         }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::E))
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num3))
         {
             mode = 2;
         }
@@ -204,14 +230,14 @@ int main()
                 sf::Keyboard::isKeyPressed(sf::Keyboard::Down) || sf::Keyboard::isKeyPressed(sf::Keyboard::S),
                 sf::Keyboard::isKeyPressed(sf::Keyboard::Up) || sf::Keyboard::isKeyPressed(sf::Keyboard::Z),
                 false};
-            update_player(0, inps);
+            game.update_player(0, inps);
         }
         if (mode == 1 || mode == 2)
         {
             for (int i_player = 1; i_player < nb_AIs + 1; i_player++)
             {
                 std::array<bool, 5> inps = get_AI_input(i_player);
-                update_player(i_player, inps);
+                game.update_player(i_player, inps);
             }
         }
 
@@ -224,13 +250,15 @@ int main()
 
         if (mode == 0 || mode == 2)
         {
-            window.draw(draw_player(players[0].x, players[0].y, sf::Color(128, 0, 128)));
+            player p_drawn = game.get_player(0);
+            window.draw(draw_player(p_drawn.x, p_drawn.y, game.get_arena_size(), sf::Color(128, 0, 128)));
         }
         if (mode == 1 || mode == 2)
         {
             for (int i_player = 1; i_player < nb_AIs + 1; i_player++)
             {
-                window.draw(draw_player(players[i_player].x, players[i_player].y, sf::Color(255, 0, 0)));
+                player p_drawn = game.get_player(i_player);
+                window.draw(draw_player(p_drawn.x, p_drawn.y, game.get_arena_size(), sf::Color(255, 0, 0)));
             }
         }
 
