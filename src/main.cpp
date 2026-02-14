@@ -104,16 +104,72 @@ public:
         {
             weights[i] = 4 * get_rand_double01() - 2;
         }
+        for (int i = 0; i < BiasesArraySize + 1; i++)
+        {
+            biases[i] = 4 * get_rand_double01() - 2;
+        }
     }
 
-    std::vector<double> run_network(std::vector<double> inputs)
+    std::array<double, MAX_NB_OUTPUTS> run_network(std::array<double, MAX_NB_INPUTS> inputs)
     {
-        std::vector<double> res;
-        for (int o = 0; o < nb_outputs; o++)
+        // input part
+        std::array<double, MAX_NB_PER_HIDDEN> next_values;
+        for (int i = 0; i < MAX_NB_PER_HIDDEN; i++) // next_values reset
         {
-            res.push_back(get_rand_double01());
+            next_values[i] = 0;
         }
-        return res;
+        for (int i_inp = 0; i_inp < nb_inputs; i_inp++) // weight calculations
+        {
+            for (int i_hidden = 0; i_hidden < nb_per_hidden; i_hidden++)
+            {
+                next_values[i_hidden] += inputs[i_inp] * weights[get_w(0, i_inp, i_hidden)];
+            }
+        }
+        for (int i_hidden = 0; i_hidden < nb_per_hidden; i_hidden++) // bias calculations
+        {
+            next_values[i_hidden] += biases[get_b(1, i_hidden)];
+        }
+
+        // hidden_layers part
+        std::array<double, MAX_NB_PER_HIDDEN> current_values;
+        for (int i_s_layer = 1; i_s_layer < nb_hidden_layers; i_s_layer++)
+        {
+            for (int i = 0; i < MAX_NB_PER_HIDDEN; i++) // previous values become current values
+            {
+                current_values[i] = next_values[i];
+            }
+            for (int i_s_hidden = 0; i_s_hidden < nb_per_hidden; i_s_hidden++) // weight calculations
+            {
+                for (int i_e_hidden = 0; i_e_hidden < nb_per_hidden; i_e_hidden++)
+                {
+                    next_values[i_e_hidden] += current_values[i_s_hidden] * weights[get_w(i_s_layer, i_s_hidden, i_e_hidden)];
+                }
+            }
+            for (int i_e_hidden = 0; i_e_hidden < nb_per_hidden; i_e_hidden++) // bias calculations
+            {
+                next_values[i_e_hidden] += biases[get_b(i_s_layer + 1, i_e_hidden)];
+            }
+        }
+
+        // output part
+        std::array<double, MAX_NB_OUTPUTS> output_values;
+        for (int i = 0; i < MAX_NB_PER_HIDDEN; i++) // previous values become current values
+        {
+            current_values[i] = next_values[i];
+        }
+        for (int i_s_hidden = 0; i_s_hidden < nb_per_hidden; i_s_hidden++) // weight calculations
+        {
+            for (int i_output = 0; i_output < nb_outputs; i_output++)
+            {
+                output_values[i_output] += current_values[i_s_hidden] * weights[get_w(nb_hidden_layers, i_s_hidden, i_output)];
+            }
+        }
+        for (int i_output = 0; i_output < nb_outputs; i_output++) // bias calculations
+        {
+            output_values[i_output] += biases[get_b(nb_hidden_layers + 1, i_output)];
+        }
+
+        return output_values;
     }
 
 private:
@@ -123,7 +179,51 @@ private:
 
     int get_idx_w(int start_layer, int start_id, int end_id)
     {
-        return 0;
+        if (start_layer == 0)
+        {
+            return start_id * nb_per_hidden + end_id;
+        }
+        else if (start_layer == nb_hidden_layers)
+        {
+            return nb_inputs * nb_per_hidden +
+                   (nb_hidden_layers - 1) * nb_per_hidden * nb_hidden_layers +
+                   start_id * nb_outputs + end_id;
+        }
+        else
+        {
+            return nb_inputs * nb_per_hidden +
+                   (start_layer - 1) * nb_per_hidden * nb_hidden_layers +
+                   start_id * nb_per_hidden + end_id;
+        }
+    }
+
+    int get_idx_b(int layer, int neuron_id)
+    {
+        if (layer == nb_hidden_layers + 1)
+        {
+            return nb_hidden_layers * nb_per_hidden + neuron_id;
+        }
+        else
+        {
+            return (layer - 1) * nb_per_hidden + neuron_id;
+        }
+    }
+
+    double get_w(int start_layer, int start_id, int end_id)
+    {
+        std::cout << "w : " << get_idx_w(start_layer, start_id, end_id)
+                  << " (" << start_layer << " " << start_id << " " << end_id << ")"
+                  << std::endl;
+        return weights[get_idx_w(start_layer, start_id, end_id)];
+    }
+
+    double get_b(int layer, int neuron_id)
+    {
+        std::cout << "b : " << get_idx_b(layer, neuron_id)
+                  << " (" << layer << " " << neuron_id << ")"
+                  << std::endl;
+        ;
+        return biases[get_idx_b(layer, neuron_id)];
     }
 };
 
@@ -164,7 +264,13 @@ int main()
     std::vector<NeuronalNetwork> networks;
     for (int i = 0; i < nb_AIs; i++)
     {
-        networks.push_back(NeuronalNetwork(4, 6, 5, 2));
+        networks.push_back(NeuronalNetwork(2, 3, 2, 2));
+    }
+
+    std::array<double, MAX_NB_OUTPUTS> test_outputs = networks[0].run_network({0, 0, 0, 0});
+    for (int i = 0; i < MAX_NB_OUTPUTS; i++)
+    {
+        std::cout << test_outputs[i] << std::endl;
     }
 
     for (int i_player = 0; i_player < nb_AIs + 1; i_player++)
