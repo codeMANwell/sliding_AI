@@ -12,19 +12,21 @@
 #define MAX_NB_PER_HIDDEN 100
 #define MAX_NB_OUTPUTS 5
 
+#define MAX_NB_TICKS 1000
+
 const int MaxWeightArraySize = (MAX_NB_INPUTS * MAX_NB_PER_HIDDEN) +
                                MAX_NB_PER_HIDDEN * MAX_NB_PER_HIDDEN * (MAX_NB_HIDDEN_LAYERS - 1) +
                                MAX_NB_PER_HIDDEN * MAX_NB_OUTPUTS;
 const int MaxBiasesArraySize = MAX_NB_HIDDEN_LAYERS * MAX_NB_PER_HIDDEN + MAX_NB_OUTPUTS;
 
+struct coord
+{
+    double x, y;
+};
+
 struct player
 {
     double x, y, x_speed, y_speed;
-};
-
-struct inputs
-{
-    bool key_right, key_left, key_up, key_down, space;
 };
 
 static std::random_device rd;
@@ -67,6 +69,15 @@ public:
         players[i_player].x_speed = 0;
         players[i_player].y_speed = 0;
     }
+
+    std::vector<std::vector<coord>> play_game(std::vector<player> players)
+    {
+        int i_frame = 0;
+        while (i_frame < MAX_NB_TICKS)
+        {
+        }
+    }
+
     player get_player(int player_id)
     {
         return players[player_id];
@@ -95,25 +106,23 @@ public:
             throw std::invalid_argument("Invalid or out of range dimensions");
         }
         nb_inputs = inp, nb_per_hidden = per_hid, nb_outputs = out, nb_hidden_layers = nb_hid;
-        WeightArraySize = (nb_inputs * nb_per_hidden) +
-                          nb_per_hidden * nb_per_hidden * (nb_hidden_layers - 1) +
-                          nb_per_hidden * nb_hidden_layers;
-        BiasesArraySize = nb_hidden_layers * nb_per_hidden + nb_outputs;
-        // std::cout << "Initialized network with weight array size : " << WeightArraySize << std::endl;
-        // std::cout << "Initialized network with biases array size : " << BiasesArraySize << std::endl;
+        nb_of_weigths = (nb_inputs * nb_per_hidden) +
+                        nb_per_hidden * nb_per_hidden * (nb_hidden_layers - 1) +
+                        nb_per_hidden * nb_hidden_layers;
+        nb_of_biases = nb_hidden_layers * nb_per_hidden + nb_outputs;
 
-        randomize();
+        init_randomize();
     }
 
-    void randomize()
+    void init_randomize()
     {
-        for (int i = 0; i < WeightArraySize + 1; i++)
+        for (int i = 0; i < nb_of_weigths + 1; i++)
         {
-            weights[i] = 4 * get_rand_double01() - 2;
+            weights.push_back(4 * get_rand_double01() - 2);
         }
-        for (int i = 0; i < BiasesArraySize + 1; i++)
+        for (int i = 0; i < nb_of_biases + 1; i++)
         {
-            biases[i] = 4 * get_rand_double01() - 2;
+            biases.push_back(4 * get_rand_double01() - 2);
         }
     }
 
@@ -174,16 +183,21 @@ public:
         for (int i_output = 0; i_output < nb_outputs; i_output++) // bias calculations
         {
             output_values[i_output] += biases[get_b(nb_hidden_layers + 1, i_output)];
+            output_values[i_output] = reLu(output_values[i_output]);
         }
 
         return output_values;
     }
+    int get_nb_outputs()
+    {
+        return nb_outputs;
+    }
 
 private:
     int nb_inputs, nb_per_hidden, nb_outputs, nb_hidden_layers;
-    int WeightArraySize, BiasesArraySize;
-    std::array<double, MaxWeightArraySize> weights;
-    std::array<double, MaxBiasesArraySize> biases;
+    int nb_of_weigths, nb_of_biases;
+    std::vector<double> weights;
+    std::vector<double> biases;
 
     int get_idx_w(int start_layer, int start_id, int end_id)
     {
@@ -237,6 +251,11 @@ private:
         */
         return biases[get_idx_b(layer, neuron_id)];
     }
+
+    double reLu(double x)
+    {
+        return (x > 0 ? x : 0);
+    }
 };
 
 int screen_arena_size, x_arena, y_arena;
@@ -280,7 +299,7 @@ int main()
     }
 
     std::array<double, MAX_NB_OUTPUTS> test_outputs = networks[0].run_network({0, 0, 0, 0});
-    for (int i = 0; i < MAX_NB_OUTPUTS; i++)
+    for (int i = 0; i < networks[0].get_nb_outputs(); i++)
     {
         std::cout << test_outputs[i] << std::endl;
     }
