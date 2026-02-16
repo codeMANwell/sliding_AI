@@ -7,9 +7,9 @@
 #include "arial.h"
 
 #define MAX_NB_PLAYERS 100
-#define MAX_NB_INPUTS 100
+#define MAX_NB_INPUTS 22
 #define MAX_NB_HIDDEN_LAYERS 10
-#define MAX_NB_PER_HIDDEN 100
+#define MAX_NB_PER_HIDDEN 50
 #define MAX_NB_OUTPUTS 5
 
 #define MAX_NB_TICKS 1000
@@ -19,14 +19,24 @@ const int MaxWeightArraySize = (MAX_NB_INPUTS * MAX_NB_PER_HIDDEN) +
                                MAX_NB_PER_HIDDEN * MAX_NB_OUTPUTS;
 const int MaxBiasesArraySize = MAX_NB_HIDDEN_LAYERS * MAX_NB_PER_HIDDEN + MAX_NB_OUTPUTS;
 
-struct coord
+class Coord
 {
+public:
     double x, y;
+    Coord(double x_inp, double y_inp)
+    {
+        x = x_inp, y = y_inp;
+    }
 };
 
-struct player
+class Player
 {
+public:
     double x, y, x_speed, y_speed;
+    Coord get_player_coord()
+    {
+        return Coord(x, y);
+    }
 };
 
 static std::random_device rd;
@@ -43,56 +53,6 @@ int get_rand_int01()
 {
     return distrib_i(generator);
 }
-
-class SlidingGame
-{
-public:
-    SlidingGame(double slipperyness_arg, double accel_arg, int arena_size_arg)
-    {
-        slipperyness = slipperyness_arg, accel = accel_arg, arena_size = arena_size_arg;
-    }
-
-    void update_player(int i_player, std::array<bool, 5> button_presse)
-    {
-        players[i_player].x_speed += (button_presse[0] ? accel : 0) - (button_presse[1] ? accel : 0);
-        players[i_player].y_speed += (button_presse[2] ? accel : 0) - (button_presse[3] ? accel : 0);
-        players[i_player].x_speed *= slipperyness;
-        players[i_player].y_speed *= slipperyness;
-        players[i_player].x += players[i_player].x_speed;
-        players[i_player].y += players[i_player].y_speed;
-    }
-
-    void reset_player(int i_player)
-    {
-        players[i_player].x = 0;
-        players[i_player].y = 0;
-        players[i_player].x_speed = 0;
-        players[i_player].y_speed = 0;
-    }
-
-    std::vector<std::vector<coord>> play_game(std::vector<player> players)
-    {
-        int i_frame = 0;
-        while (i_frame < MAX_NB_TICKS)
-        {
-        }
-    }
-
-    player get_player(int player_id)
-    {
-        return players[player_id];
-    }
-    int get_arena_size()
-    {
-        return arena_size;
-    }
-
-private:
-    double slipperyness;
-    double accel;
-    int arena_size;
-    player players[MAX_NB_PLAYERS + 1];
-};
 
 class NeuronalNetwork
 {
@@ -126,11 +86,11 @@ public:
         }
     }
 
-    std::array<double, MAX_NB_OUTPUTS> run_network(std::array<double, MAX_NB_INPUTS> inputs)
+    std::vector<double> run_network(std::vector<double> inputs)
     {
         // input part
         std::array<double, MAX_NB_PER_HIDDEN> next_values;
-        for (int i = 0; i < MAX_NB_PER_HIDDEN; i++) // next_values reset
+        for (int i = 0; i < nb_per_hidden; i++) // next_values reset
         {
             next_values[i] = 0;
         }
@@ -150,9 +110,10 @@ public:
         std::array<double, MAX_NB_PER_HIDDEN> current_values;
         for (int i_s_layer = 1; i_s_layer < nb_hidden_layers; i_s_layer++)
         {
-            for (int i = 0; i < MAX_NB_PER_HIDDEN; i++) // previous values become current values
+            for (int i = 0; i < nb_per_hidden; i++) // previous values become current values
             {
                 current_values[i] = next_values[i];
+                next_values[i] = 0;
             }
             for (int i_s_hidden = 0; i_s_hidden < nb_per_hidden; i_s_hidden++) // weight calculations
             {
@@ -168,10 +129,14 @@ public:
         }
 
         // output part
-        std::array<double, MAX_NB_OUTPUTS> output_values;
-        for (int i = 0; i < MAX_NB_PER_HIDDEN; i++) // previous values become current values
+        std::vector<double> output_values;
+        for (int i = 0; i < nb_per_hidden; i++) // previous values become current values
         {
             current_values[i] = next_values[i];
+        }
+        for (int i = 0; i < nb_outputs; i++)
+        {
+            output_values.push_back(0);
         }
         for (int i_s_hidden = 0; i_s_hidden < nb_per_hidden; i_s_hidden++) // weight calculations
         {
@@ -258,6 +223,114 @@ private:
     }
 };
 
+struct SlidingGameReport
+{
+    int nb_players;
+    std::array<double, MAX_NB_PLAYERS> scores;
+    std::array<std::vector<Coord>, MAX_NB_PLAYERS> recording;
+};
+
+class SlidingGame
+{
+public:
+    SlidingGame(double slipperyness_arg, double accel_arg, int arena_size_arg)
+    {
+        slipperyness = slipperyness_arg, accel = accel_arg, arena_size = arena_size_arg;
+    }
+
+    void update_player(int i_player, std::array<bool, 5> button_presse)
+    {
+        players[i_player].x_speed += (button_presse[0] ? accel : 0) - (button_presse[1] ? accel : 0);
+        players[i_player].y_speed += (button_presse[2] ? accel : 0) - (button_presse[3] ? accel : 0);
+        players[i_player].x_speed *= slipperyness;
+        players[i_player].y_speed *= slipperyness;
+        players[i_player].x += players[i_player].x_speed;
+        players[i_player].y += players[i_player].y_speed;
+    }
+
+    void reset_player(int i_player)
+    {
+        players[i_player].x = 0;
+        players[i_player].y = 0;
+        players[i_player].x_speed = 0;
+        players[i_player].y_speed = 0;
+    }
+
+    std::vector<double> get_player_data(int i_player)
+    {
+        std::vector<double> result;
+        result.push_back(players[i_player].x);
+        result.push_back(players[i_player].y);
+        return result;
+    }
+
+    double get_player_score(int i_player)
+    {
+        double x_speed = players[i_player].x_speed, y_speed = players[i_player].y_speed;
+        return sqrt(x_speed * x_speed + y_speed * y_speed);
+    }
+
+    SlidingGameReport play_AI_recorded_game(int nbAIs, std::vector<NeuronalNetwork> networks)
+    {
+        std::cout << "Called function" << std::endl;
+        for (int i_player = 0; i_player < nbAIs; i_player++)
+        {
+            reset_player(i_player);
+        }
+        std::cout << "Finished reseting players" << std::endl;
+        SlidingGameReport report;
+        std::cout << "Created an object with report type" << std::endl;
+        report.nb_players = nbAIs;
+        for (int i_player = 0; i_player < nbAIs; i_player++)
+        {
+            report.scores[i_player] = 0;
+        }
+
+        int i_frame = 0;
+        while (i_frame < MAX_NB_TICKS)
+        {
+            for (int i_player = 0; i_player < nbAIs; i_player++)
+            {
+                // std::cout << i_player << std::endl;
+                std::vector<double> network_inps = get_player_data(i_player);
+                // std::cout << "Got player data" << std::endl;
+
+                update_player(i_player, translate_network_output(networks[i_player].run_network(network_inps)));
+                // std::cout << "Updated player" << std::endl;
+                report.scores[i_player] += get_player_score(i_player);
+                // std::cout << "Calculated score" << std::endl;
+                report.recording[i_player].push_back(players[i_player].get_player_coord());
+                // std::cout << "recorded (x, y)" << std::endl;
+            }
+            i_frame++;
+        }
+        return report;
+    }
+    std::array<bool, 5> translate_network_output(std::vector<double> net_outputs)
+    {
+        std::array<bool, 5> result;
+        for (int i_out = 0; i_out < net_outputs.size() && i_out < 5; i_out++)
+        {
+            result[i_out] = net_outputs[i_out] > 5;
+        }
+        return result;
+    }
+    Player get_player(int player_id)
+    {
+        return players[player_id];
+    }
+    int get_arena_size()
+    {
+        return arena_size;
+    }
+
+private:
+    double slipperyness;
+    double accel;
+    int arena_size;
+    Player players[MAX_NB_PLAYERS + 1];
+};
+
 int screen_arena_size, x_arena, y_arena;
 
 sf::CircleShape draw_player(int x, int y, int game_arena_size, sf::Color col)
@@ -271,7 +344,7 @@ sf::CircleShape draw_player(int x, int y, int game_arena_size, sf::Color col)
     return dot;
 }
 
-std::array<bool, 5> get_AI_input(int i_network)
+std::array<bool, 5> get_rand_input(int i_network)
 {
     std::array<bool, 5> input;
     static std::default_random_engine generator(std::random_device{}());
@@ -295,10 +368,14 @@ int main()
     std::vector<NeuronalNetwork> networks;
     for (int i = 0; i < nb_AIs; i++)
     {
-        networks.push_back(NeuronalNetwork(2, 3, 2, 2));
+        networks.push_back(NeuronalNetwork(2, 3, 5, 1));
     }
 
-    std::array<double, MAX_NB_OUTPUTS> test_outputs = networks[0].run_network({0, 0, 0, 0});
+    SlidingGameReport game_stats = game.play_AI_recorded_game(nb_AIs, networks);
+
+    std::cout << game_stats.recording[0][0].x << " " << game_stats.recording[0][100].x << " " << game_stats.recording[0][999].x << " " << std::endl;
+
+    std::vector<double> test_outputs = networks[0].run_network({0, 0, 0, 0});
     for (int i = 0; i < networks[0].get_nb_outputs(); i++)
     {
         std::cout << test_outputs[i] << std::endl;
@@ -373,7 +450,8 @@ int main()
         {
             for (int i_player = 1; i_player < nb_AIs + 1; i_player++)
             {
-                std::array<bool, 5> inps = get_AI_input(i_player);
+                // std::array<bool, 5> inps = get_rand_input(i_player);
+                std::array<bool, 5> inps = game.translate_network_output(networks[i_player - 1].run_network(game.get_player_data(i_player - 1)));
                 game.update_player(i_player, inps);
             }
         }
@@ -387,14 +465,14 @@ int main()
 
         if (mode == 0 || mode == 2)
         {
-            player p_drawn = game.get_player(0);
+            Player p_drawn = game.get_player(0);
             window.draw(draw_player(p_drawn.x, p_drawn.y, game.get_arena_size(), sf::Color(128, 0, 128)));
         }
         if (mode == 1 || mode == 2)
         {
             for (int i_player = 1; i_player < nb_AIs + 1; i_player++)
             {
-                player p_drawn = game.get_player(i_player);
+                Player p_drawn = game.get_player(i_player);
                 window.draw(draw_player(p_drawn.x, p_drawn.y, game.get_arena_size(), sf::Color(255, 0, 0)));
             }
         }
