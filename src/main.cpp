@@ -18,6 +18,9 @@ const int MaxWeightArraySize = (MAX_NB_INPUTS * MAX_NB_PER_HIDDEN) +
                                MAX_NB_PER_HIDDEN * MAX_NB_PER_HIDDEN * (MAX_NB_HIDDEN_LAYERS - 1) +
                                MAX_NB_PER_HIDDEN * MAX_NB_OUTPUTS;
 const int MaxBiasesArraySize = MAX_NB_HIDDEN_LAYERS * MAX_NB_PER_HIDDEN + MAX_NB_OUTPUTS;
+const double activation_threshold = 3;
+
+sf::Font font;
 
 class Coord
 {
@@ -228,6 +231,8 @@ struct SlidingGameReport
     int nb_players;
     std::array<double, MAX_NB_PLAYERS> scores;
     std::array<std::vector<Coord>, MAX_NB_PLAYERS> recording;
+    int nb_ticks_recorded;
+    std::vector<int> ranking;
 };
 
 class SlidingGame
@@ -246,6 +251,10 @@ public:
         players[i_player].y_speed *= slipperyness;
         players[i_player].x += players[i_player].x_speed;
         players[i_player].y += players[i_player].y_speed;
+        if (is_dead(i_player))
+        {
+            alive[i_player] = false;
+        }
     }
 
     void reset_player(int i_player)
@@ -254,6 +263,17 @@ public:
         players[i_player].y = 0;
         players[i_player].x_speed = 0;
         players[i_player].y_speed = 0;
+        alive[i_player] = true;
+    }
+
+    bool is_dead(int i_player)
+    {
+        if (players[i_player].x < -arena_size / 2 || players[i_player].x > arena_size / 2 ||
+            players[i_player].y < -arena_size / 2 || players[i_player].y > arena_size / 2)
+        {
+            return true;
+        }
+        return false;
     }
 
     std::vector<double> get_player_data(int i_player)
@@ -272,15 +292,13 @@ public:
 
     SlidingGameReport play_AI_recorded_game(int nbAIs, std::vector<NeuronalNetwork> networks)
     {
-        std::cout << "Called function" << std::endl;
         for (int i_player = 0; i_player < nbAIs; i_player++)
         {
             reset_player(i_player);
         }
-        std::cout << "Finished reseting players" << std::endl;
         SlidingGameReport report;
-        std::cout << "Created an object with report type" << std::endl;
         report.nb_players = nbAIs;
+        report.nb_ticks_recorded = 0;
         for (int i_player = 0; i_player < nbAIs; i_player++)
         {
             report.scores[i_player] = 0;
@@ -291,18 +309,17 @@ public:
         {
             for (int i_player = 0; i_player < nbAIs; i_player++)
             {
-                // std::cout << i_player << std::endl;
-                std::vector<double> network_inps = get_player_data(i_player);
-                // std::cout << "Got player data" << std::endl;
+                if (alive[i_player])
+                {
+                    std::vector<double> network_inps = get_player_data(i_player);
 
-                update_player(i_player, translate_network_output(networks[i_player].run_network(network_inps)));
-                // std::cout << "Updated player" << std::endl;
-                report.scores[i_player] += get_player_score(i_player);
-                // std::cout << "Calculated score" << std::endl;
-                report.recording[i_player].push_back(players[i_player].get_player_coord());
-                // std::cout << "recorded (x, y)" << std::endl;
+                    update_player(i_player, translate_network_output(networks[i_player].run_network(network_inps)));
+                    report.scores[i_player] += get_player_score(i_player);
+                    report.recording[i_player].push_back(players[i_player].get_player_coord());
+                }
             }
             i_frame++;
+            report.nb_ticks_recorded += 1;
         }
         return report;
     }
@@ -311,7 +328,7 @@ public:
         std::array<bool, 5> result;
         for (int i_out = 0; i_out < net_outputs.size() && i_out < 5; i_out++)
         {
-            result[i_out] = net_outputs[i_out] > 5;
+            result[i_out] = net_outputs[i_out] > activation_threshold;
         }
         return result;
     }
@@ -329,6 +346,7 @@ private:
     double accel;
     int arena_size;
     Player players[MAX_NB_PLAYERS + 1];
+    bool alive[MAX_NB_PLAYERS + 1];
 };
 
 int screen_arena_size, x_arena, y_arena;
@@ -344,6 +362,20 @@ sf::CircleShape draw_player(int x, int y, int game_arena_size, sf::Color col)
     return dot;
 }
 
+sf::Text draw_label(int x, int y, int game_arena_size, std::string label_text, sf::Color col = sf::Color(0, 0, 0))
+{
+    double scale = (double)screen_arena_size / game_arena_size;
+    int real_x = x * scale + x_arena;
+    int real_y = y * scale + y_arena;
+
+    sf::Text text;
+    text.setFont(font);
+    text.setString(label_text);
+    text.setCharacterSize((screen_arena_size / 100.0) * 1.5);
+    text.setPosition(real_x + 2, real_y + 2);
+    text.setFillColor(col);
+    return text;
+}
 std::array<bool, 5> get_rand_input(int i_network)
 {
     std::array<bool, 5> input;
@@ -371,14 +403,12 @@ int main()
         networks.push_back(NeuronalNetwork(2, 3, 5, 1));
     }
 
-    SlidingGameReport game_stats = game.play_AI_recorded_game(nb_AIs, networks);
+    SlidingGameReport game_report = game.play_AI_recorded_game(nb_AIs, networks);
+    int i_frame_sim = 0;
 
-    std::cout << game_stats.recording[0][0].x << " " << game_stats.recording[0][100].x << " " << game_stats.recording[0][999].x << " " << std::endl;
-
-    std::vector<double> test_outputs = networks[0].run_network({0, 0, 0, 0});
-    for (int i = 0; i < networks[0].get_nb_outputs(); i++)
+    for (int i_player = 0; i_player < nb_AIs; i_player++)
     {
-        std::cout << test_outputs[i] << std::endl;
+        std::cout << "Player " << i_player << " got score " << game_report.scores[i_player] << std::endl;
     }
 
     for (int i_player = 0; i_player < nb_AIs + 1; i_player++)
@@ -386,12 +416,12 @@ int main()
         game.reset_player(i_player);
     }
 
-    sf::Font font;
     if (!font.loadFromMemory(arial_ttf, arial_ttf_len))
     {
         std::cerr << "Text error" << std::endl;
         return -1;
     }
+    bool show_labels = false;
 
     sf::RenderWindow window(
         sf::VideoMode(window_width, window_height),
@@ -419,24 +449,34 @@ int main()
                 screen_arena_size = std::min(window_width - 100, window_height - 100);
                 x_arena = window_width / 2, y_arena = window_height / 2;
             }
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::L)
+            {
+                show_labels = !show_labels;
+            }
         }
 
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num1))
         {
             mode = 0;
-            // std::cout << get_rand_double01() << std::endl;
         }
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num2))
         {
             mode = 1;
-            // std::cout << get_rand_int01() << std::endl;
         }
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num3))
         {
             mode = 2;
         }
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num4))
+        {
+            mode = 3;
+        }
+        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num5))
+        {
+            mode = 4;
+        }
 
-        if (mode == 0 || mode == 2)
+        if (mode == 0 || mode == 2 || mode == 4)
         {
             std::array<bool, 5> inps = {
                 sf::Keyboard::isKeyPressed(sf::Keyboard::Right) || sf::Keyboard::isKeyPressed(sf::Keyboard::D),
@@ -450,7 +490,6 @@ int main()
         {
             for (int i_player = 1; i_player < nb_AIs + 1; i_player++)
             {
-                // std::array<bool, 5> inps = get_rand_input(i_player);
                 std::array<bool, 5> inps = game.translate_network_output(networks[i_player - 1].run_network(game.get_player_data(i_player - 1)));
                 game.update_player(i_player, inps);
             }
@@ -463,7 +502,7 @@ int main()
         arena.setFillColor(sf::Color(171, 203, 230));
         window.draw(arena);
 
-        if (mode == 0 || mode == 2)
+        if (mode == 0 || mode == 2 || mode == 4)
         {
             Player p_drawn = game.get_player(0);
             window.draw(draw_player(p_drawn.x, p_drawn.y, game.get_arena_size(), sf::Color(128, 0, 128)));
@@ -472,9 +511,25 @@ int main()
         {
             for (int i_player = 1; i_player < nb_AIs + 1; i_player++)
             {
-                Player p_drawn = game.get_player(i_player);
-                window.draw(draw_player(p_drawn.x, p_drawn.y, game.get_arena_size(), sf::Color(255, 0, 0)));
+                Coord coord_drawn = game.get_player(i_player).get_player_coord();
+                window.draw(draw_player(coord_drawn.x, coord_drawn.y, game.get_arena_size(), sf::Color(255, 0, 0)));
             }
+        }
+        if (mode == 3 || mode == 4)
+        {
+            for (int i_IA = 0; i_IA < nb_AIs; i_IA++)
+            {
+                if (game_report.recording[i_IA].size() > i_frame_sim)
+                {
+                    Coord coord_drawn = game_report.recording[i_IA][i_frame_sim];
+                    window.draw(draw_player(coord_drawn.x, coord_drawn.y, game.get_arena_size(), sf::Color(255, 0, 0)));
+                    if (show_labels)
+                    {
+                        window.draw(draw_label(coord_drawn.x, coord_drawn.y, game.get_arena_size(), std::to_string(i_IA)));
+                    }
+                }
+            }
+            i_frame_sim = (i_frame_sim + 1) % MAX_NB_TICKS;
         }
 
         window.display();
