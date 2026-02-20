@@ -4,9 +4,10 @@
 #include <string>
 #include <array>
 #include <random>
+#include <algorithm>
 #include "arial.h"
 
-#define MAX_NB_PLAYERS 100
+#define MAX_NB_PLAYERS 1001
 #define MAX_NB_INPUTS 22
 #define MAX_NB_HIDDEN_LAYERS 10
 #define MAX_NB_PER_HIDDEN 50
@@ -226,13 +227,25 @@ private:
     }
 };
 
-struct SlidingGameReport
+class SlidingGameReport
 {
+public:
     int nb_players;
     std::array<double, MAX_NB_PLAYERS> scores;
     std::array<std::vector<Coord>, MAX_NB_PLAYERS> recording;
     int nb_ticks_recorded;
-    std::vector<int> ranking;
+    std::array<double, MAX_NB_PLAYERS> rankings;
+    void make_rankings()
+    {
+        std::array<double, MAX_NB_PLAYERS> cur_scores;
+        std::copy(scores.begin(), scores.begin() + nb_players, cur_scores.begin());
+        for (int i = 0; i < nb_players; i++)
+        {
+            rankings[i] = i;
+        }
+        std::sort(rankings.begin(), rankings.begin() + nb_players, [&cur_scores](int a, int b)
+                  { return cur_scores[a] > cur_scores[b]; });
+    }
 };
 
 class SlidingGame
@@ -392,7 +405,7 @@ int main()
 {
     int window_width = 1000, window_height = 1000;
     int mode = 0;
-    int nb_AIs = 50;
+    int nb_AIs = 1000;
     x_arena = 500, y_arena = 500, screen_arena_size = 900;
 
     SlidingGame game(0.95, 1.0, 1000);
@@ -404,12 +417,10 @@ int main()
     }
 
     SlidingGameReport game_report = game.play_AI_recorded_game(nb_AIs, networks);
+    game_report.make_rankings();
     int i_frame_sim = 0;
 
-    for (int i_player = 0; i_player < nb_AIs; i_player++)
-    {
-        std::cout << "Player " << i_player << " got score " << game_report.scores[i_player] << std::endl;
-    }
+    std::cout << "Player " << game_report.rankings[0] << " was best with score " << game_report.scores[game_report.rankings[0]] << std::endl;
 
     for (int i_player = 0; i_player < nb_AIs + 1; i_player++)
     {
@@ -522,7 +533,8 @@ int main()
                 if (game_report.recording[i_IA].size() > i_frame_sim)
                 {
                     Coord coord_drawn = game_report.recording[i_IA][i_frame_sim];
-                    window.draw(draw_player(coord_drawn.x, coord_drawn.y, game.get_arena_size(), sf::Color(255, 0, 0)));
+                    sf::Color col = (game_report.rankings[0] == i_IA ? sf::Color(255, 127, 0) : sf::Color(255, 0, 0));
+                    window.draw(draw_player(coord_drawn.x, coord_drawn.y, game.get_arena_size(), col));
                     if (show_labels)
                     {
                         window.draw(draw_label(coord_drawn.x, coord_drawn.y, game.get_arena_size(), std::to_string(i_IA)));
