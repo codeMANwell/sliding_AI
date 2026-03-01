@@ -14,6 +14,9 @@
 #define MAX_NB_OUTPUTS 5
 
 #define MAX_NB_TICKS 1000
+#define MAX_GENS 1000
+
+#define PD(x) std::cout << x << std::endl;
 
 const int MaxWeightArraySize = (MAX_NB_INPUTS * MAX_NB_PER_HIDDEN) +
                                MAX_NB_PER_HIDDEN * MAX_NB_PER_HIDDEN * (MAX_NB_HIDDEN_LAYERS - 1) +
@@ -58,14 +61,14 @@ int get_rand_int01()
     return distrib_i(generator);
 }
 
-class NeuronalNetwork
+class NeuralNetwork
 {
 public:
-    NeuronalNetwork(int inp, int per_hid, int out, int nb_hid)
+    NeuralNetwork(int inp, int per_hid, int out, int nb_hid, bool randomize = true)
     {
         if (inp > MAX_NB_INPUTS || per_hid > MAX_NB_PER_HIDDEN ||
-            nb_outputs > MAX_NB_OUTPUTS || nb_hid > MAX_NB_HIDDEN_LAYERS ||
-            inp < 0 || per_hid < 0 || nb_outputs < 0 || nb_hid < 0)
+            out > MAX_NB_OUTPUTS || nb_hid > MAX_NB_HIDDEN_LAYERS ||
+            inp < 0 || per_hid < 0 || out < 0 || nb_hid < 0)
         {
             throw std::invalid_argument("Invalid or out of range dimensions");
         }
@@ -74,8 +77,10 @@ public:
                         nb_per_hidden * nb_per_hidden * (nb_hidden_layers - 1) +
                         nb_per_hidden * nb_hidden_layers;
         nb_of_biases = nb_hidden_layers * nb_per_hidden + nb_outputs;
-
-        init_randomize();
+        if (randomize)
+        {
+            init_randomize();
+        }
     }
 
     void init_randomize()
@@ -129,6 +134,7 @@ public:
             for (int i_e_hidden = 0; i_e_hidden < nb_per_hidden; i_e_hidden++) // bias calculations
             {
                 next_values[i_e_hidden] += biases[get_b(i_s_layer + 1, i_e_hidden)];
+                next_values[i_e_hidden] = reLu(next_values[i_e_hidden]);
             }
         }
 
@@ -157,6 +163,53 @@ public:
 
         return output_values;
     }
+
+    NeuralNetwork cross_over_with(NeuralNetwork other)
+    {
+        NeuralNetwork resultingNN(nb_inputs, nb_per_hidden, nb_outputs, nb_hidden_layers, false);
+        for (int i_weight = 0; i_weight < nb_of_weigths; i_weight++)
+        {
+            if (get_rand_int01() == 0)
+            {
+                resultingNN.weights.push_back(weights[i_weight]);
+            }
+            else
+            {
+                resultingNN.weights.push_back(other.weights[i_weight]);
+            }
+        }
+        for (int i_bias = 0; i_bias < nb_of_biases; i_bias++)
+        {
+            if (get_rand_int01() == 0)
+            {
+                resultingNN.biases.push_back(biases[i_bias]);
+            }
+            else
+            {
+                resultingNN.biases.push_back(other.biases[i_bias]);
+            }
+        }
+        return resultingNN;
+    }
+
+    void mutate(double prob = 0.001)
+    {
+        for (int i_weight = 0; i_weight < nb_of_weigths; i_weight++)
+        {
+            if (get_rand_double01() < prob)
+            {
+                weights[i_weight] += get_rand_double01() * 4 - 2;
+            }
+        }
+        for (int i_bias = 0; i_bias < nb_of_biases; i_bias++)
+        {
+            if (get_rand_double01() < prob)
+            {
+                biases[i_bias] += get_rand_double01() * 4 - 2;
+            }
+        }
+    }
+
     int get_nb_outputs()
     {
         return nb_outputs;
@@ -225,7 +278,84 @@ private:
     {
         return (x > 0 ? x : 0);
     }
+
+    double sigmoid(double x)
+    {
+        return (double)1 / (1 + exp(-x));
+    }
 };
+
+std::vector<NeuralNetwork> wheel_selection(std::vector<NeuralNetwork> networks, int nbAIs, std::array<double, MAX_NB_PLAYERS> scores)
+{
+    std::vector<NeuralNetwork> next_gen;
+
+    double score_sum = 0;
+    for (int i_net = 0; i_net < nbAIs; i_net++)
+    {
+        score_sum += scores[i_net];
+    }
+
+    for (int i_next_net = 0; i_next_net < nbAIs; i_next_net++)
+    {
+        double stop_score = get_rand_double01() * score_sum;
+        double curr_score_sum = 0;
+        int f_i_net = 0;
+        while (curr_score_sum < stop_score)
+        {
+            curr_score_sum += scores[f_i_net];
+            f_i_net++;
+        }
+        f_i_net--;
+
+        stop_score = get_rand_double01() * score_sum;
+        curr_score_sum = 0;
+        int s_i_net = 0;
+        while (curr_score_sum < stop_score)
+        {
+            curr_score_sum += scores[s_i_net];
+            s_i_net++;
+        }
+        s_i_net--;
+        NeuralNetwork built_net = networks[f_i_net].cross_over_with(networks[s_i_net]);
+        built_net.mutate();
+        next_gen.push_back(built_net);
+    }
+    return next_gen;
+}
+
+std::vector<NeuralNetwork> rank_wheel_selection(std::vector<NeuralNetwork> networks, int nbAIs, std::array<double, MAX_NB_PLAYERS> rankings)
+{
+    std::vector<NeuralNetwork> next_gen;
+
+    int rankings_sum = nbAIs * (nbAIs + 1) / 2;
+
+    for (int i_next_net = 0; i_next_net < nbAIs; i_next_net++)
+    {
+        double stop_score = get_rand_double01() * rankings_sum;
+        double curr_score_sum = 0;
+        int f_rank = 0;
+        while (curr_score_sum <= stop_score)
+        {
+            curr_score_sum += nbAIs - f_rank;
+            f_rank++;
+        }
+        f_rank--;
+
+        stop_score = get_rand_double01() * rankings_sum;
+        curr_score_sum = 0;
+        int s_rank = 0;
+        while (curr_score_sum <= stop_score)
+        {
+            curr_score_sum += nbAIs - s_rank;
+            s_rank++;
+        }
+        s_rank--;
+        NeuralNetwork built_net = networks[rankings[f_rank]].cross_over_with(networks[rankings[s_rank]]);
+        built_net.mutate();
+        next_gen.push_back(built_net);
+    }
+    return next_gen;
+}
 
 class SlidingGameReport
 {
@@ -303,7 +433,7 @@ public:
         return sqrt(x_speed * x_speed + y_speed * y_speed);
     }
 
-    SlidingGameReport play_AI_recorded_game(int nbAIs, std::vector<NeuronalNetwork> networks)
+    SlidingGameReport play_AI_recorded_game(int nbAIs, std::vector<NeuralNetwork> networks)
     {
         for (int i_player = 0; i_player < nbAIs; i_player++)
         {
@@ -336,6 +466,7 @@ public:
         }
         return report;
     }
+
     std::array<bool, 5> translate_network_output(std::vector<double> net_outputs)
     {
         std::array<bool, 5> result;
@@ -361,6 +492,26 @@ private:
     Player players[MAX_NB_PLAYERS + 1];
     bool alive[MAX_NB_PLAYERS + 1];
 };
+
+std::vector<SlidingGameReport> play_AI_sim(int nbAIs, std::vector<NeuralNetwork> starting_networks, double score_goal = INFINITY, int nb_gens = MAX_GENS)
+{
+    std::vector<NeuralNetwork> networks = starting_networks;
+    std::vector<SlidingGameReport> recordings;
+
+    int i_gen = 0;
+    double curr_best_score = -INFINITY;
+    while (i_gen < nb_gens && curr_best_score < score_goal)
+    {
+        SlidingGame game(0.95, 1.0, 1000);
+        SlidingGameReport game_report = game.play_AI_recorded_game(nbAIs, networks);
+        game_report.make_rankings();
+        std::cout << "Gen  " << i_gen << " : Player " << game_report.rankings[0] << " won with score " << game_report.scores[game_report.rankings[0]] << std::endl;
+        recordings.push_back(game_report);
+        networks = wheel_selection(networks, nbAIs, game_report.scores);
+        i_gen++;
+    }
+    return recordings;
+}
 
 int screen_arena_size, x_arena, y_arena;
 
@@ -405,22 +556,19 @@ int main()
 {
     int window_width = 1000, window_height = 1000;
     int mode = 0;
-    int nb_AIs = 1000;
+    int nb_AIs = 100;
     x_arena = 500, y_arena = 500, screen_arena_size = 900;
 
-    SlidingGame game(0.95, 1.0, 1000);
-
-    std::vector<NeuronalNetwork> networks;
+    std::vector<NeuralNetwork> networks;
     for (int i = 0; i < nb_AIs; i++)
     {
-        networks.push_back(NeuronalNetwork(2, 3, 5, 1));
+        networks.push_back(NeuralNetwork(2, 3, 5, 1));
     }
 
-    SlidingGameReport game_report = game.play_AI_recorded_game(nb_AIs, networks);
-    game_report.make_rankings();
+    std::vector<SlidingGameReport> game_reports = play_AI_sim(nb_AIs, networks);
     int i_frame_sim = 0;
 
-    std::cout << "Player " << game_report.rankings[0] << " was best with score " << game_report.scores[game_report.rankings[0]] << std::endl;
+    SlidingGame game(0.95, 1.0, 1000);
 
     for (int i_player = 0; i_player < nb_AIs + 1; i_player++)
     {
@@ -530,10 +678,10 @@ int main()
         {
             for (int i_IA = 0; i_IA < nb_AIs; i_IA++)
             {
-                if (game_report.recording[i_IA].size() > i_frame_sim)
+                if (game_reports[game_reports.size() - 1].recording[i_IA].size() > i_frame_sim)
                 {
-                    Coord coord_drawn = game_report.recording[i_IA][i_frame_sim];
-                    sf::Color col = (game_report.rankings[0] == i_IA ? sf::Color(255, 127, 0) : sf::Color(255, 0, 0));
+                    Coord coord_drawn = game_reports[game_reports.size() - 1].recording[i_IA][i_frame_sim];
+                    sf::Color col = (game_reports[game_reports.size() - 1].rankings[0] == i_IA ? sf::Color(255, 127, 0) : sf::Color(255, 0, 0));
                     window.draw(draw_player(coord_drawn.x, coord_drawn.y, game.get_arena_size(), col));
                     if (show_labels)
                     {
