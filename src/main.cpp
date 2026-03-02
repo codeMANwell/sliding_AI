@@ -14,15 +14,17 @@
 #define MAX_NB_OUTPUTS 5
 
 #define MAX_NB_TICKS 1000
-#define MAX_GENS 1000
+#define MAX_GENS 200
 
 #define PD(x) std::cout << x << std::endl;
+#define reLu(x) ((x) > 0 ? (x) : 0)
+#define sigmoid(x) (1 / (1 + exp(-(x))))
 
 const int MaxWeightArraySize = (MAX_NB_INPUTS * MAX_NB_PER_HIDDEN) +
                                MAX_NB_PER_HIDDEN * MAX_NB_PER_HIDDEN * (MAX_NB_HIDDEN_LAYERS - 1) +
                                MAX_NB_PER_HIDDEN * MAX_NB_OUTPUTS;
 const int MaxBiasesArraySize = MAX_NB_HIDDEN_LAYERS * MAX_NB_PER_HIDDEN + MAX_NB_OUTPUTS;
-const double activation_threshold = 3;
+const double activation_threshold = 0.5;
 
 sf::Font font;
 
@@ -61,6 +63,11 @@ int get_rand_int01()
     return distrib_i(generator);
 }
 
+double get_rand_double_in(double range)
+{
+    return distrib_d(generator) * range - range / 2;
+}
+
 class NeuralNetwork
 {
 public:
@@ -75,7 +82,7 @@ public:
         nb_inputs = inp, nb_per_hidden = per_hid, nb_outputs = out, nb_hidden_layers = nb_hid;
         nb_of_weigths = (nb_inputs * nb_per_hidden) +
                         nb_per_hidden * nb_per_hidden * (nb_hidden_layers - 1) +
-                        nb_per_hidden * nb_hidden_layers;
+                        nb_per_hidden * nb_outputs;
         nb_of_biases = nb_hidden_layers * nb_per_hidden + nb_outputs;
         if (randomize)
         {
@@ -85,13 +92,13 @@ public:
 
     void init_randomize()
     {
-        for (int i = 0; i < nb_of_weigths + 1; i++)
+        for (int i = 0; i < nb_of_weigths; i++)
         {
-            weights.push_back(4 * get_rand_double01() - 2);
+            weights.push_back(get_rand_double_in(4));
         }
-        for (int i = 0; i < nb_of_biases + 1; i++)
+        for (int i = 0; i < nb_of_biases; i++)
         {
-            biases.push_back(4 * get_rand_double01() - 2);
+            biases.push_back(get_rand_double_in(4));
         }
     }
 
@@ -134,7 +141,7 @@ public:
             for (int i_e_hidden = 0; i_e_hidden < nb_per_hidden; i_e_hidden++) // bias calculations
             {
                 next_values[i_e_hidden] += biases[get_b(i_s_layer + 1, i_e_hidden)];
-                next_values[i_e_hidden] = reLu(next_values[i_e_hidden]);
+                next_values[i_e_hidden] = sigmoid(next_values[i_e_hidden]);
             }
         }
 
@@ -152,13 +159,16 @@ public:
         {
             for (int i_output = 0; i_output < nb_outputs; i_output++)
             {
+                // PD(get_idx_w(nb_hidden_layers, i_s_hidden, i_output))
+                // PD(i_output)
+                // PD(i_s_hidden)
                 output_values[i_output] += current_values[i_s_hidden] * weights[get_w(nb_hidden_layers, i_s_hidden, i_output)];
             }
         }
         for (int i_output = 0; i_output < nb_outputs; i_output++) // bias calculations
         {
             output_values[i_output] += biases[get_b(nb_hidden_layers + 1, i_output)];
-            output_values[i_output] = reLu(output_values[i_output]);
+            output_values[i_output] = sigmoid(output_values[i_output]);
         }
 
         return output_values;
@@ -192,20 +202,20 @@ public:
         return resultingNN;
     }
 
-    void mutate(double prob = 0.001)
+    void mutate(double prob = 0.1)
     {
         for (int i_weight = 0; i_weight < nb_of_weigths; i_weight++)
         {
             if (get_rand_double01() < prob)
             {
-                weights[i_weight] += get_rand_double01() * 4 - 2;
+                weights[i_weight] += get_rand_double_in(0.5);
             }
         }
         for (int i_bias = 0; i_bias < nb_of_biases; i_bias++)
         {
             if (get_rand_double01() < prob)
             {
-                biases[i_bias] += get_rand_double01() * 4 - 2;
+                biases[i_bias] += get_rand_double_in(0.5);
             }
         }
     }
@@ -230,13 +240,13 @@ private:
         else if (start_layer == nb_hidden_layers)
         {
             return nb_inputs * nb_per_hidden +
-                   (nb_hidden_layers - 1) * nb_per_hidden * nb_hidden_layers +
+                   (nb_hidden_layers - 1) * nb_per_hidden * nb_per_hidden +
                    start_id * nb_outputs + end_id;
         }
         else
         {
             return nb_inputs * nb_per_hidden +
-                   (start_layer - 1) * nb_per_hidden * nb_hidden_layers +
+                   (start_layer - 1) * nb_per_hidden * nb_per_hidden +
                    start_id * nb_per_hidden + end_id;
         }
     }
@@ -272,16 +282,6 @@ private:
         ;
         */
         return biases[get_idx_b(layer, neuron_id)];
-    }
-
-    double reLu(double x)
-    {
-        return (x > 0 ? x : 0);
-    }
-
-    double sigmoid(double x)
-    {
-        return (double)1 / (1 + exp(-x));
     }
 };
 
@@ -323,7 +323,7 @@ std::vector<NeuralNetwork> wheel_selection(std::vector<NeuralNetwork> networks, 
     return next_gen;
 }
 
-std::vector<NeuralNetwork> rank_wheel_selection(std::vector<NeuralNetwork> networks, int nbAIs, std::array<double, MAX_NB_PLAYERS> rankings)
+std::vector<NeuralNetwork> rank_wheel_selection(std::vector<NeuralNetwork> networks, int nbAIs, std::array<int, MAX_NB_PLAYERS> rankings)
 {
     std::vector<NeuralNetwork> next_gen;
 
@@ -357,6 +357,40 @@ std::vector<NeuralNetwork> rank_wheel_selection(std::vector<NeuralNetwork> netwo
     return next_gen;
 }
 
+std::vector<NeuralNetwork> cross_first_n_selection(std::vector<NeuralNetwork> networks, int nbAIs, std::array<int, MAX_NB_PLAYERS> rankings, int top, bool mutate_top = true)
+{
+    std::vector<NeuralNetwork> next_gen;
+
+    for (int i_rank = 0; i_rank < nbAIs; i_rank++)
+    {
+        int i_top = i_rank % top;
+        NeuralNetwork built_net = networks[rankings[i_top]].cross_over_with(networks[rankings[i_rank]]);
+        if (i_top != i_rank && !mutate_top)
+        {
+            built_net.mutate();
+        }
+        next_gen.push_back(built_net);
+    }
+    return next_gen;
+}
+
+std::vector<NeuralNetwork> copy_first_n_selection(std::vector<NeuralNetwork> networks, int nbAIs, std::array<int, MAX_NB_PLAYERS> rankings, int top)
+{
+    std::vector<NeuralNetwork> next_gen;
+
+    for (int i_rank = 0; i_rank < nbAIs; i_rank++)
+    {
+        int i_top = i_rank % top;
+        NeuralNetwork built_net = networks[rankings[i_top]];
+        if (i_top != i_rank)
+        {
+            built_net.mutate(0.2);
+        }
+        next_gen.push_back(built_net);
+    }
+    return next_gen;
+}
+
 class SlidingGameReport
 {
 public:
@@ -364,7 +398,7 @@ public:
     std::array<double, MAX_NB_PLAYERS> scores;
     std::array<std::vector<Coord>, MAX_NB_PLAYERS> recording;
     int nb_ticks_recorded;
-    std::array<double, MAX_NB_PLAYERS> rankings;
+    std::array<int, MAX_NB_PLAYERS> rankings;
     void make_rankings()
     {
         std::array<double, MAX_NB_PLAYERS> cur_scores;
@@ -467,10 +501,10 @@ public:
         return report;
     }
 
-    std::array<bool, 5> translate_network_output(std::vector<double> net_outputs)
+    std::array<bool, MAX_NB_OUTPUTS> translate_network_output(std::vector<double> net_outputs)
     {
-        std::array<bool, 5> result;
-        for (int i_out = 0; i_out < net_outputs.size() && i_out < 5; i_out++)
+        std::array<bool, MAX_NB_OUTPUTS> result{};
+        for (int i_out = 0; i_out < net_outputs.size() && i_out < MAX_NB_OUTPUTS; i_out++)
         {
             result[i_out] = net_outputs[i_out] > activation_threshold;
         }
@@ -493,24 +527,46 @@ private:
     bool alive[MAX_NB_PLAYERS + 1];
 };
 
-std::vector<SlidingGameReport> play_AI_sim(int nbAIs, std::vector<NeuralNetwork> starting_networks, double score_goal = INFINITY, int nb_gens = MAX_GENS)
+struct SimulationResult
 {
+    NeuralNetwork best_network;
+    double best_score;
+    std::vector<SlidingGameReport> recordings;
+    int best_gen;
+};
+
+SimulationResult play_AI_sim(int nbAIs, std::vector<NeuralNetwork> starting_networks, double score_goal = INFINITY, int nb_gens = MAX_GENS)
+{
+    NeuralNetwork best_network(2, 3, 4, 1);
+    double best_score = -INFINITY;
     std::vector<NeuralNetwork> networks = starting_networks;
     std::vector<SlidingGameReport> recordings;
+    int best_gen = 0;
 
     int i_gen = 0;
-    double curr_best_score = -INFINITY;
-    while (i_gen < nb_gens && curr_best_score < score_goal)
+    while (i_gen < nb_gens && best_score < score_goal)
     {
         SlidingGame game(0.95, 1.0, 1000);
         SlidingGameReport game_report = game.play_AI_recorded_game(nbAIs, networks);
         game_report.make_rankings();
-        std::cout << "Gen  " << i_gen << " : Player " << game_report.rankings[0] << " won with score " << game_report.scores[game_report.rankings[0]] << std::endl;
+
+        if (game_report.scores[game_report.rankings[0]] > best_score)
+        {
+            best_score = game_report.scores[game_report.rankings[0]];
+            best_network = networks[game_report.rankings[0]];
+            best_gen = i_gen;
+            std::cout << "Gen  " << i_gen << " : Player " << game_report.rankings[0] << " won with score " << game_report.scores[game_report.rankings[0]] << " (new best)" << std::endl;
+        }
+        else
+        {
+            std::cout << "Gen  " << i_gen << " : Player " << game_report.rankings[0] << " won with score " << game_report.scores[game_report.rankings[0]] << std::endl;
+        }
         recordings.push_back(game_report);
-        networks = wheel_selection(networks, nbAIs, game_report.scores);
+        networks = copy_first_n_selection(networks, nbAIs, game_report.rankings, 5); // selection
         i_gen++;
     }
-    return recordings;
+    std::cout << "----------\nOverall best score : " << best_score << " (on generation " << best_gen << ")" << std::endl;
+    return SimulationResult{best_network, best_score, recordings, best_gen};
 }
 
 int screen_arena_size, x_arena, y_arena;
@@ -540,12 +596,12 @@ sf::Text draw_label(int x, int y, int game_arena_size, std::string label_text, s
     text.setFillColor(col);
     return text;
 }
-std::array<bool, 5> get_rand_input(int i_network)
+std::array<bool, 4> get_rand_input(int i_network)
 {
-    std::array<bool, 5> input;
+    std::array<bool, 4> input;
     static std::default_random_engine generator(std::random_device{}());
     std::uniform_int_distribution<int> distribution(0, 1);
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 4; i++)
     {
         input[i] = (bool)distribution(generator);
     }
@@ -562,11 +618,15 @@ int main()
     std::vector<NeuralNetwork> networks;
     for (int i = 0; i < nb_AIs; i++)
     {
-        networks.push_back(NeuralNetwork(2, 3, 5, 1));
+        networks.push_back(NeuralNetwork(2, 3, 4, 1));
     }
 
-    std::vector<SlidingGameReport> game_reports = play_AI_sim(nb_AIs, networks);
+    SimulationResult sim_result = play_AI_sim(nb_AIs, networks, 900000);
+    std::vector<SlidingGameReport> game_reports = sim_result.recordings;
+
     int i_frame_sim = 0;
+    int rendered_gen = sim_result.best_gen;
+    // rendered_gen = 0;
 
     SlidingGame game(0.95, 1.0, 1000);
 
@@ -647,9 +707,9 @@ int main()
         }
         if (mode == 1 || mode == 2)
         {
-            for (int i_player = 1; i_player < nb_AIs + 1; i_player++)
+            for (int i_player = 1; i_player < 1 + nb_AIs; i_player++)
             {
-                std::array<bool, 5> inps = game.translate_network_output(networks[i_player - 1].run_network(game.get_player_data(i_player - 1)));
+                std::array<bool, 5> inps = game.translate_network_output(sim_result.best_network.run_network(game.get_player_data(i_player)));
                 game.update_player(i_player, inps);
             }
         }
@@ -668,7 +728,7 @@ int main()
         }
         if (mode == 1 || mode == 2)
         {
-            for (int i_player = 1; i_player < nb_AIs + 1; i_player++)
+            for (int i_player = 1; i_player < 1 + nb_AIs; i_player++)
             {
                 Coord coord_drawn = game.get_player(i_player).get_player_coord();
                 window.draw(draw_player(coord_drawn.x, coord_drawn.y, game.get_arena_size(), sf::Color(255, 0, 0)));
@@ -678,10 +738,10 @@ int main()
         {
             for (int i_IA = 0; i_IA < nb_AIs; i_IA++)
             {
-                if (game_reports[game_reports.size() - 1].recording[i_IA].size() > i_frame_sim)
+                if (game_reports[rendered_gen].recording[i_IA].size() > i_frame_sim)
                 {
-                    Coord coord_drawn = game_reports[game_reports.size() - 1].recording[i_IA][i_frame_sim];
-                    sf::Color col = (game_reports[game_reports.size() - 1].rankings[0] == i_IA ? sf::Color(255, 127, 0) : sf::Color(255, 0, 0));
+                    Coord coord_drawn = game_reports[rendered_gen].recording[i_IA][i_frame_sim];
+                    sf::Color col = (game_reports[rendered_gen].rankings[0] == i_IA ? sf::Color(255, 127, 0) : sf::Color(255, 0, 0));
                     window.draw(draw_player(coord_drawn.x, coord_drawn.y, game.get_arena_size(), col));
                     if (show_labels)
                     {
