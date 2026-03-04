@@ -14,7 +14,7 @@
 #define MAX_NB_OUTPUTS 5
 
 #define MAX_NB_TICKS 1000
-#define MAX_GENS 200
+#define MAX_NB_GENS 1000
 
 #define PD(x) std::cout << x << std::endl;
 #define reLu(x) ((x) > 0 ? (x) : 0)
@@ -365,7 +365,7 @@ std::vector<NeuralNetwork> cross_first_n_selection(std::vector<NeuralNetwork> ne
     {
         int i_top = i_rank % top;
         NeuralNetwork built_net = networks[rankings[i_top]].cross_over_with(networks[rankings[i_rank]]);
-        if (i_top != i_rank && !mutate_top)
+        if (i_top != i_rank || !mutate_top)
         {
             built_net.mutate();
         }
@@ -374,7 +374,7 @@ std::vector<NeuralNetwork> cross_first_n_selection(std::vector<NeuralNetwork> ne
     return next_gen;
 }
 
-std::vector<NeuralNetwork> copy_first_n_selection(std::vector<NeuralNetwork> networks, int nbAIs, std::array<int, MAX_NB_PLAYERS> rankings, int top)
+std::vector<NeuralNetwork> copy_first_n_selection(std::vector<NeuralNetwork> networks, int nbAIs, std::array<int, MAX_NB_PLAYERS> rankings, int top, bool mutate_top = false)
 {
     std::vector<NeuralNetwork> next_gen;
 
@@ -382,7 +382,7 @@ std::vector<NeuralNetwork> copy_first_n_selection(std::vector<NeuralNetwork> net
     {
         int i_top = i_rank % top;
         NeuralNetwork built_net = networks[rankings[i_top]];
-        if (i_top != i_rank)
+        if (i_top != i_rank || !mutate_top)
         {
             built_net.mutate(0.2);
         }
@@ -434,10 +434,18 @@ public:
         }
     }
 
-    void reset_player(int i_player)
+    void reset_player(int i_player, bool random_pos = false)
     {
-        players[i_player].x = 0;
-        players[i_player].y = 0;
+        if (random_pos)
+        {
+            players[i_player].x = get_rand_double_in((double)arena_size / 5);
+            players[i_player].y = get_rand_double_in((double)arena_size / 5);
+        }
+        else
+        {
+            players[i_player].x = 0;
+            players[i_player].y = 0;
+        }
         players[i_player].x_speed = 0;
         players[i_player].y_speed = 0;
         alive[i_player] = true;
@@ -458,6 +466,8 @@ public:
         std::vector<double> result;
         result.push_back(players[i_player].x);
         result.push_back(players[i_player].y);
+        result.push_back(players[i_player].x_speed);
+        result.push_back(players[i_player].y_speed);
         return result;
     }
 
@@ -471,7 +481,7 @@ public:
     {
         for (int i_player = 0; i_player < nbAIs; i_player++)
         {
-            reset_player(i_player);
+            reset_player(i_player, true);
         }
         SlidingGameReport report;
         report.nb_players = nbAIs;
@@ -535,9 +545,9 @@ struct SimulationResult
     int best_gen;
 };
 
-SimulationResult play_AI_sim(int nbAIs, std::vector<NeuralNetwork> starting_networks, double score_goal = INFINITY, int nb_gens = MAX_GENS)
+SimulationResult play_AI_sim(int nbAIs, std::vector<NeuralNetwork> starting_networks, double score_goal = INFINITY, int nb_gens = MAX_NB_GENS)
 {
-    NeuralNetwork best_network(2, 3, 4, 1);
+    NeuralNetwork best_network(4, 5, 4, 1);
     double best_score = -INFINITY;
     std::vector<NeuralNetwork> networks = starting_networks;
     std::vector<SlidingGameReport> recordings;
@@ -562,7 +572,7 @@ SimulationResult play_AI_sim(int nbAIs, std::vector<NeuralNetwork> starting_netw
             std::cout << "Gen  " << i_gen << " : Player " << game_report.rankings[0] << " won with score " << game_report.scores[game_report.rankings[0]] << std::endl;
         }
         recordings.push_back(game_report);
-        networks = copy_first_n_selection(networks, nbAIs, game_report.rankings, 5); // selection
+        networks = copy_first_n_selection(networks, nbAIs, game_report.rankings, 5, false); // selection
         i_gen++;
     }
     std::cout << "----------\nOverall best score : " << best_score << " (on generation " << best_gen << ")" << std::endl;
@@ -618,7 +628,7 @@ int main()
     std::vector<NeuralNetwork> networks;
     for (int i = 0; i < nb_AIs; i++)
     {
-        networks.push_back(NeuralNetwork(2, 3, 4, 1));
+        networks.push_back(NeuralNetwork(4, 5, 4, 1));
     }
 
     SimulationResult sim_result = play_AI_sim(nb_AIs, networks, 900000);
@@ -632,7 +642,7 @@ int main()
 
     for (int i_player = 0; i_player < nb_AIs + 1; i_player++)
     {
-        game.reset_player(i_player);
+        game.reset_player(i_player, true);
     }
 
     if (!font.loadFromMemory(arial_ttf, arial_ttf_len))
