@@ -13,18 +13,24 @@
 #define MAX_NB_PER_HIDDEN 50
 #define MAX_NB_OUTPUTS 5
 
-#define MAX_NB_TICKS 1000
-#define MAX_NB_GENS 1000
-
 #define PD(x) std::cout << x << std::endl;
 #define reLu(x) ((x) > 0 ? (x) : 0)
 #define sigmoid(x) (1 / (1 + exp(-(x))))
+
+#define MAX_NB_TICKS 1000                       // the sim runs for that amount of frames
+#define MAX_NB_GENS 1000                        // the sim stops after that amount of generations
+#define DEFAULT_MUTATION_PROB 0.15              // probability that a certan wheight (or bias) is mutated
+#define MUATION_RANGE 0.5                       // when a weight or a bias is mutated, the value changes by that amount divided by 2 in either direction
+#define ACTIVATION_FUNCTION sigmoid             // function aplied to each neuron after calculating the sum
+#define SELECTION_METHOD copy_first_n_selection // selection method to make the next generation
+#define ACTIVATION_THRESHOLD 0.5                // if output value is greater than this number, the AI plays the action
+#define STARTING_WEIGHT_RANGE 4                 // weights start in the range [-2, 2]
+#define STARTING_BIAS_RANGE 4                   // biases start in the range [-2, 2]
 
 const int MaxWeightArraySize = (MAX_NB_INPUTS * MAX_NB_PER_HIDDEN) +
                                MAX_NB_PER_HIDDEN * MAX_NB_PER_HIDDEN * (MAX_NB_HIDDEN_LAYERS - 1) +
                                MAX_NB_PER_HIDDEN * MAX_NB_OUTPUTS;
 const int MaxBiasesArraySize = MAX_NB_HIDDEN_LAYERS * MAX_NB_PER_HIDDEN + MAX_NB_OUTPUTS;
-const double activation_threshold = 0.5;
 
 sf::Font font;
 
@@ -94,11 +100,11 @@ public:
     {
         for (int i = 0; i < nb_of_weigths; i++)
         {
-            weights.push_back(get_rand_double_in(4));
+            weights.push_back(get_rand_double_in(STARTING_WEIGHT_RANGE));
         }
         for (int i = 0; i < nb_of_biases; i++)
         {
-            biases.push_back(get_rand_double_in(4));
+            biases.push_back(get_rand_double_in(STARTING_BIAS_RANGE));
         }
     }
 
@@ -120,6 +126,7 @@ public:
         for (int i_hidden = 0; i_hidden < nb_per_hidden; i_hidden++) // bias calculations
         {
             next_values[i_hidden] += biases[get_b(1, i_hidden)];
+            // next_values[i_hidden] = ACTIVATION_FUNCTION(next_values[i_hidden]);
         }
 
         // hidden_layers part
@@ -141,7 +148,7 @@ public:
             for (int i_e_hidden = 0; i_e_hidden < nb_per_hidden; i_e_hidden++) // bias calculations
             {
                 next_values[i_e_hidden] += biases[get_b(i_s_layer + 1, i_e_hidden)];
-                next_values[i_e_hidden] = sigmoid(next_values[i_e_hidden]);
+                next_values[i_e_hidden] = ACTIVATION_FUNCTION(next_values[i_e_hidden]);
             }
         }
 
@@ -159,16 +166,13 @@ public:
         {
             for (int i_output = 0; i_output < nb_outputs; i_output++)
             {
-                // PD(get_idx_w(nb_hidden_layers, i_s_hidden, i_output))
-                // PD(i_output)
-                // PD(i_s_hidden)
                 output_values[i_output] += current_values[i_s_hidden] * weights[get_w(nb_hidden_layers, i_s_hidden, i_output)];
             }
         }
         for (int i_output = 0; i_output < nb_outputs; i_output++) // bias calculations
         {
             output_values[i_output] += biases[get_b(nb_hidden_layers + 1, i_output)];
-            output_values[i_output] = sigmoid(output_values[i_output]);
+            output_values[i_output] = ACTIVATION_FUNCTION(output_values[i_output]);
         }
 
         return output_values;
@@ -202,20 +206,20 @@ public:
         return resultingNN;
     }
 
-    void mutate(double prob = 0.1)
+    void mutate(double prob = DEFAULT_MUTATION_PROB)
     {
         for (int i_weight = 0; i_weight < nb_of_weigths; i_weight++)
         {
             if (get_rand_double01() < prob)
             {
-                weights[i_weight] += get_rand_double_in(0.5);
+                weights[i_weight] += get_rand_double_in(MUATION_RANGE);
             }
         }
         for (int i_bias = 0; i_bias < nb_of_biases; i_bias++)
         {
             if (get_rand_double01() < prob)
             {
-                biases[i_bias] += get_rand_double_in(0.5);
+                biases[i_bias] += get_rand_double_in(MUATION_RANGE);
             }
         }
     }
@@ -265,22 +269,11 @@ private:
 
     double get_w(int start_layer, int start_id, int end_id)
     {
-        /*
-        std::cout << "w : " << get_idx_w(start_layer, start_id, end_id)
-                  << " (" << start_layer << " " << start_id << " " << end_id << ")"
-                  << std::endl;
-        */
         return weights[get_idx_w(start_layer, start_id, end_id)];
     }
 
     double get_b(int layer, int neuron_id)
     {
-        /*
-        std::cout << "b : " << get_idx_b(layer, neuron_id)
-                  << " (" << layer << " " << neuron_id << ")"
-                  << std::endl;
-        ;
-        */
         return biases[get_idx_b(layer, neuron_id)];
     }
 };
@@ -367,7 +360,7 @@ std::vector<NeuralNetwork> cross_first_n_selection(std::vector<NeuralNetwork> ne
         NeuralNetwork built_net = networks[rankings[i_top]].cross_over_with(networks[rankings[i_rank]]);
         if (i_top != i_rank || !mutate_top)
         {
-            built_net.mutate();
+            built_net.mutate(0.15);
         }
         next_gen.push_back(built_net);
     }
@@ -384,7 +377,7 @@ std::vector<NeuralNetwork> copy_first_n_selection(std::vector<NeuralNetwork> net
         NeuralNetwork built_net = networks[rankings[i_top]];
         if (i_top != i_rank || !mutate_top)
         {
-            built_net.mutate(0.2);
+            built_net.mutate();
         }
         next_gen.push_back(built_net);
     }
@@ -420,15 +413,15 @@ public:
         slipperyness = slipperyness_arg, accel = accel_arg, arena_size = arena_size_arg;
     }
 
-    void update_player(int i_player, std::array<bool, 5> button_presse)
+    void update_player(int i_player, std::array<bool, 5> button_presses)
     {
-        players[i_player].x_speed += (button_presse[0] ? accel : 0) - (button_presse[1] ? accel : 0);
-        players[i_player].y_speed += (button_presse[2] ? accel : 0) - (button_presse[3] ? accel : 0);
+        players[i_player].x_speed += (button_presses[0] ? accel : 0) - (button_presses[1] ? accel : 0);
+        players[i_player].y_speed += (button_presses[2] ? accel : 0) - (button_presses[3] ? accel : 0);
         players[i_player].x_speed *= slipperyness;
         players[i_player].y_speed *= slipperyness;
         players[i_player].x += players[i_player].x_speed;
         players[i_player].y += players[i_player].y_speed;
-        if (is_dead(i_player))
+        if (just_died(i_player))
         {
             alive[i_player] = false;
         }
@@ -438,8 +431,8 @@ public:
     {
         if (random_pos)
         {
-            players[i_player].x = get_rand_double_in((double)arena_size / 5);
-            players[i_player].y = get_rand_double_in((double)arena_size / 5);
+            players[i_player].x = get_rand_double_in((double)arena_size / 10);
+            players[i_player].y = get_rand_double_in((double)arena_size / 10);
         }
         else
         {
@@ -451,7 +444,7 @@ public:
         alive[i_player] = true;
     }
 
-    bool is_dead(int i_player)
+    bool just_died(int i_player)
     {
         if (players[i_player].x < -arena_size / 2 || players[i_player].x > arena_size / 2 ||
             players[i_player].y < -arena_size / 2 || players[i_player].y > arena_size / 2)
@@ -464,10 +457,10 @@ public:
     std::vector<double> get_player_data(int i_player)
     {
         std::vector<double> result;
-        result.push_back(players[i_player].x);
-        result.push_back(players[i_player].y);
-        result.push_back(players[i_player].x_speed);
-        result.push_back(players[i_player].y_speed);
+        result.push_back(players[i_player].x);       //  / (arena_size / 2)
+        result.push_back(players[i_player].y);       //  / (arena_size / 2)
+        result.push_back(players[i_player].x_speed); //  * (1 - slipperyness)
+        result.push_back(players[i_player].y_speed); //  * (1 - slipperyness)
         return result;
     }
 
@@ -481,7 +474,7 @@ public:
     {
         for (int i_player = 0; i_player < nbAIs; i_player++)
         {
-            reset_player(i_player, true);
+            reset_player(i_player, false);
         }
         SlidingGameReport report;
         report.nb_players = nbAIs;
@@ -499,7 +492,6 @@ public:
                 if (alive[i_player])
                 {
                     std::vector<double> network_inps = get_player_data(i_player);
-
                     update_player(i_player, translate_network_output(networks[i_player].run_network(network_inps)));
                     report.scores[i_player] += get_player_score(i_player);
                     report.recording[i_player].push_back(players[i_player].get_player_coord());
@@ -516,7 +508,7 @@ public:
         std::array<bool, MAX_NB_OUTPUTS> result{};
         for (int i_out = 0; i_out < net_outputs.size() && i_out < MAX_NB_OUTPUTS; i_out++)
         {
-            result[i_out] = net_outputs[i_out] > activation_threshold;
+            result[i_out] = net_outputs[i_out] > ACTIVATION_THRESHOLD;
         }
         return result;
     }
@@ -528,13 +520,17 @@ public:
     {
         return arena_size;
     }
+    bool is_alive(int i_player)
+    {
+        return alive[i_player];
+    }
 
 private:
     double slipperyness;
     double accel;
     int arena_size;
-    Player players[MAX_NB_PLAYERS + 1];
-    bool alive[MAX_NB_PLAYERS + 1];
+    Player players[MAX_NB_PLAYERS];
+    bool alive[MAX_NB_PLAYERS];
 };
 
 struct SimulationResult
@@ -572,7 +568,7 @@ SimulationResult play_AI_sim(int nbAIs, std::vector<NeuralNetwork> starting_netw
             std::cout << "Gen  " << i_gen << " : Player " << game_report.rankings[0] << " won with score " << game_report.scores[game_report.rankings[0]] << std::endl;
         }
         recordings.push_back(game_report);
-        networks = copy_first_n_selection(networks, nbAIs, game_report.rankings, 5, false); // selection
+        networks = SELECTION_METHOD(networks, nbAIs, game_report.rankings, 5, false); // selection
         i_gen++;
     }
     std::cout << "----------\nOverall best score : " << best_score << " (on generation " << best_gen << ")" << std::endl;
@@ -631,7 +627,7 @@ int main()
         networks.push_back(NeuralNetwork(4, 5, 4, 1));
     }
 
-    SimulationResult sim_result = play_AI_sim(nb_AIs, networks, 900000);
+    SimulationResult sim_result = play_AI_sim(nb_AIs, networks, 20000);
     std::vector<SlidingGameReport> game_reports = sim_result.recordings;
 
     int i_frame_sim = 0;
@@ -642,7 +638,7 @@ int main()
 
     for (int i_player = 0; i_player < nb_AIs + 1; i_player++)
     {
-        game.reset_player(i_player, true);
+        game.reset_player(i_player, false);
     }
 
     if (!font.loadFromMemory(arial_ttf, arial_ttf_len))
@@ -719,8 +715,11 @@ int main()
         {
             for (int i_player = 1; i_player < 1 + nb_AIs; i_player++)
             {
-                std::array<bool, 5> inps = game.translate_network_output(sim_result.best_network.run_network(game.get_player_data(i_player)));
-                game.update_player(i_player, inps);
+                if (game.is_alive(i_player))
+                {
+                    std::array<bool, 5> inps = game.translate_network_output(sim_result.best_network.run_network(game.get_player_data(i_player)));
+                    game.update_player(i_player, inps);
+                }
             }
         }
 
@@ -740,8 +739,11 @@ int main()
         {
             for (int i_player = 1; i_player < 1 + nb_AIs; i_player++)
             {
-                Coord coord_drawn = game.get_player(i_player).get_player_coord();
-                window.draw(draw_player(coord_drawn.x, coord_drawn.y, game.get_arena_size(), sf::Color(255, 0, 0)));
+                if (game.is_alive(i_player))
+                {
+                    Coord coord_drawn = game.get_player(i_player).get_player_coord();
+                    window.draw(draw_player(coord_drawn.x, coord_drawn.y, game.get_arena_size(), sf::Color(255, 0, 0)));
+                }
             }
         }
         if (mode == 3 || mode == 4)
